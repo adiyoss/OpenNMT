@@ -329,17 +329,21 @@ function Decoder:backward(batch, outputs, criterion)
                                                          { batch.size, batch.sourceLength, self.args.rnnSize })
 
   local loss = 0
-
+  local y_hat = {}
+  local y_vecs = {}
   for t = batch.targetLength, 1, -1 do
     -- Compute decoder output gradients.
     -- Note: This would typically be in the forward pass.
     local pred = self.generator:forward(outputs[t])
     local output = batch:getTargetOutput(t)
-
-    loss = loss + criterion:forward(pred, output)
-
+    
+    table.insert(y_hat, output)
+    table.insert(y_vecs, pred)
+    
+    loss = loss + criterion:forward(y_vecs, y_hat)
+    
     -- Compute the criterion gradient.
-    local genGradOut = criterion:backward(pred, output)
+    local genGradOut = criterion:backward(y_vecs, y_hat)
     for j = 1, #genGradOut do
       genGradOut[j]:div(batch.totalSize)
     end

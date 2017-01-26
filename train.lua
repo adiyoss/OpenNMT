@@ -1,5 +1,7 @@
-require('onmt.init')
+require('mobdebug').start()
 
+require('orbit')
+require('onmt.init')
 local path = require('pl.path')
 require('tds')
 local cmd = torch.CmdLine()
@@ -14,8 +16,8 @@ cmd:text("")
 cmd:text("**Data options**")
 cmd:text("")
 
-cmd:option('-data', '', [[Path to the training *-train.t7 file from preprocess.lua]])
-cmd:option('-save_model', '', [[Model filename (the model will be saved as
+cmd:option('-data', 'data/demo-train.t7', [[Path to the training *-train.t7 file from preprocess.lua]])
+cmd:option('-save_model', 'model', [[Model filename (the model will be saved as
                               <save_model>_epochN_PPL.t7 where PPL is the validation perplexity]])
 cmd:option('-train_from', '', [[If training from a checkpoint then this is the path to the pretrained model.]])
 cmd:option('-continue', false, [[If training from a checkpoint, whether to continue the training in the same configuration or not.]])
@@ -24,7 +26,7 @@ cmd:text("")
 cmd:text("**Model options**")
 cmd:text("")
 
-cmd:option('-layers', 2, [[Number of layers in the RNN encoder/decoder]])
+cmd:option('-layers', 1, [[Number of layers in the RNN encoder/decoder]])
 cmd:option('-rnn_size', 500, [[Size of RNN hidden states]])
 cmd:option('-rnn_type', 'LSTM', [[Type of RNN cell: LSTM, GRU]])
 cmd:option('-word_vec_size', 500, [[Word embedding sizes]])
@@ -41,13 +43,13 @@ cmd:text("")
 cmd:text("**Optimization options**")
 cmd:text("")
 
-cmd:option('-max_batch_size', 64, [[Maximum batch size]])
-cmd:option('-end_epoch', 13, [[The final epoch of the training]])
+cmd:option('-max_batch_size', 4, [[Maximum batch size]])
+cmd:option('-end_epoch', 30, [[The final epoch of the training]])
 cmd:option('-start_epoch', 1, [[If loading from a checkpoint, the epoch from which to start]])
 cmd:option('-start_iteration', 1, [[If loading from a checkpoint, the iteration from which to start]])
 cmd:option('-param_init', 0.1, [[Parameters are initialized over uniform distribution with support (-param_init, param_init)]])
-cmd:option('-optim', 'sgd', [[Optimization method. Possible options are: sgd, adagrad, adadelta, adam]])
-cmd:option('-learning_rate', 1, [[Starting learning rate. If adagrad/adadelta/adam is used,
+cmd:option('-optim', 'adam', [[Optimization method. Possible options are: sgd, adagrad, adadelta, adam]])
+cmd:option('-learning_rate', 0.0002, [[Starting learning rate. If adagrad/adadelta/adam is used,
                                 then this is the global learning rate. Recommended settings are: sgd = 1,
                                 adagrad = 0.1, adadelta = 1, adam = 0.0002]])
 cmd:option('-max_grad_norm', 5, [[If the norm of the gradient vector exceeds this renormalize it to have the norm equal to max_grad_norm]])
@@ -139,7 +141,8 @@ local function buildCriterion(vocabSize, features)
     local w = torch.ones(size)
     w[onmt.Constants.PAD] = 0
 
-    local nll = nn.ClassNLLCriterion(w)
+    --local nll = nn.ClassNLLCriterion(w)
+    local nll = nn.Orbit('dist_num', 1, tgt_size, 'false')
 
     -- Let the training code manage loss normalization.
     nll.sizeAverage = false
@@ -486,6 +489,7 @@ local function main()
   validData:setBatchSize(opt.max_batch_size)
 
   if not opt.json_log then
+    tgt_size = dataset.dicts.tgt.words:size()
     _G.logger:info(' * vocabulary size: source = %d; target = %d',
                    dataset.dicts.src.words:size(), dataset.dicts.tgt.words:size())
     _G.logger:info(' * additional features: source = %d; target = %d',
